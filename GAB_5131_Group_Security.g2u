@@ -1,0 +1,796 @@
+﻿Program.Sub.ScreenSU.Start
+Gui.F_Sec..Create
+Gui.F_Sec..Caption("Group Security")
+Gui.F_Sec..Size(12615,7710)
+Gui.F_Sec..Position(0,0)
+Gui.F_Sec..ForeColor(0)
+Gui.F_Sec..Backcolor(-2147483633)
+Gui.F_Sec..MousePointer(0)
+Gui.F_Sec..Event(UnLoad,F_Sec_UnLoad)
+Gui.F_Sec..MinX(12615)
+Gui.F_Sec..MinY(7710)
+Gui.F_Sec.GsGCSec.Create(GsGridControl)
+Gui.F_Sec.GsGCSec.Size(12450,6285)
+Gui.F_Sec.GsGCSec.Position(15,1050)
+Gui.F_Sec.GsGCSec.Event(RowCellClick,GsGCSec_RowCellClick)
+Gui.F_Sec.GsGCSec.Anchor(15)
+Gui.F_Sec.pb1.Create(ProgressBar)
+Gui.F_Sec.pb1.Size(3105,255)
+Gui.F_Sec.pb1.Position(15,720)
+Gui.F_Sec.lblMsg.Create(Label,"****Change****",True,3165,240,0,15,510,True,0,"Arial",10,-2147483633,0)
+Gui.F_Sec.picGSSLogo.Create(PictureBox)
+Gui.F_Sec.picGSSLogo.Size(4125,960)
+Gui.F_Sec.picGSSLogo.Position(4245,45)
+Gui.F_Sec.picGSSLogo.Event(DblClick,picGSSLogo_DblClick)
+Gui.F_Sec.picGSSLogo.Anchor(1)
+Gui.F_Sec.cmdRefresh.Create(Button)
+Gui.F_Sec.cmdRefresh.Size(840,375)
+Gui.F_Sec.cmdRefresh.Position(11625,660)
+Gui.F_Sec.cmdRefresh.Caption("REFRESH")
+Gui.F_Sec.cmdRefresh.Event(Click,cmdRefresh_Click)
+Gui.F_Sec.cmdRefresh.ToolTip("Refresh")
+Gui.F_Sec.cmdRefresh.Anchor(9)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+	V.Global.sGreenHeader.Declare
+	V.Global.sGreenCell.Declare
+	V.Global.sGrayHeader.Declare
+	V.Global.sGrayCell.Declare
+	
+	V.Global.sGreenHeader.Set("109, 187, 126")
+	V.Global.sGreenCell.Set("171, 216, 181")
+	V.Global.sGrayHeader.Set("179, 181, 182")
+	V.Global.sGrayCell.Set("212, 213, 213")
+	
+'	Program.External.Include.Library("GAB_Canny.lib")
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+	F.Intrinsic.Control.Try
+	V.Local.sError.Declare
+	
+	'Program will be used to see what users have access to a particular menu item through Groups
+	
+	V.Local.sIcon.Declare
+	V.Local.sGssLogo.Declare
+	
+	F.ODBC.Connection!con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+	F.ODBC.Connection!common.OpenConnection(V.Ambient.Ccon,V.Ambient.Cuser,V.Ambient.Cpass)
+	
+	F.Intrinsic.String.Build("{0}\GAB\GAS\gss2.ico",V.Caller.PluginsDir,v.Local.sIcon)
+	F.Intrinsic.String.Build("{0}\GAB\GAS\GAB_GSS_Logo_Green_Dash.png",V.Caller.PluginsDir,V.Local.sGssLogo)
+
+	'Modified by Deni Y 11/25/20, turned off commands below since these are flagged as error by GABErrorScanner
+'	Gui.frmWeb..Icon(V.Local.sIcon)
+
+	Gui.F_Sec..Icon(V.Local.sIcon)
+	Gui.F_Sec.picGSSLogo.Picture(V.Local.sGssLogo)
+	
+	'Canny
+'	F.Intrinsic.Control.CallSub(CannyCheckUser,"Form","F_Sec")
+	'Modified by Deni Y 11/25/20, turned off commands below since these are flagged as error by GABErrorScanner
+'	Gui.F_Sec.cmdCanny.Position(8400,45)
+	
+	Gui.F_Sec..Show
+		
+	F.Intrinsic.Control.CallSub(LoadDTGVGroups)
+	F.Intrinsic.Control.CallSub(LoadDTGVUsers)
+	F.Intrinsic.Control.CallSub(LoadPermissions)
+	
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.F_Sec_UnLoad.Start
+	F.Intrinsic.Control.Try
+	V.Local.sError.Declare
+	
+	F.ODBC.Connection!con.Close
+	F.ODBC.Connection!common.Close
+	F.Intrinsic.Control.End
+	
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry
+Program.Sub.F_Sec_UnLoad.End
+
+Program.Sub.LoadDTGVGroups.Start
+	F.Intrinsic.Control.Try
+	V.Local.sError.Declare
+	
+	'Load all security groups
+	
+	V.Local.sSQL.Declare
+	
+	F.Intrinsic.Control.If(V.DataTable.dtGroups.Exists)
+		F.Data.DataTable.Close("dtGroups")
+	F.Intrinsic.Control.EndIf
+	
+	Gui.F_Sec.lblMsg.Caption("Loading Security Groups....")
+	F.Intrinsic.String.Build("Select Group_ID,Company,Gs_Group,Description From User_Groups Where Enabled = 1 And Company = '{0}' Order By Group_ID;",V.Caller.CompanyCode,V.Local.sSQL)
+	F.Data.DataTable.CreateFromSQL("dtGroups","common",V.Local.sSQL,True)
+'	F.Data.DataTable.AddColumn("dtGroups","Copy",String,"Copy")
+	
+	Gui.F_Sec.GsGCSec.AddGridviewFromDatatable("gvGroups","dtGroups")
+	Gui.F_Sec.GsGCSec.MainView("gvGroups")
+	Gui.F_Sec.GsGCSec.SuspendLayout()
+	
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvGroups","Multiselect",True)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvGroups","Editable",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvGroups","ReadOnly",True)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvGroups","AllowSort",True)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvGroups","AllowFilter",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvGroups","OptionsDetailShowDetailTabs",True)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvGroups","OptionsViewShowGroupPanel",False)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Group_ID","Visible",False)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Company","Visible",False)
+	
+'	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Copy","ShowCaption",False)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Group_ID","Caption","Group ID")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Company","Caption","Company Code")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Gs_Group","Caption","Group")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Description","Caption","Description")
+'	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Copy","Caption","Description")
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Group_ID","MinWidth","50")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Company","MinWidth","50")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Gs_Group","MinWidth","50")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Description","MinWidth","150")
+'	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Copy","MinWidth","50")
+	
+'	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Copy","MaxWidth","50")
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Group_ID","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Company","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Gs_Group","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Description","HeaderFontBold",True)
+'	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Copy","HeaderFontBold",True)
+	
+'	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Copy","CellHAlignment","Center")
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Group_ID","HeaderBackColor",V.Global.sGreenHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Company","HeaderBackColor",V.Global.sGreenHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Gs_Group","HeaderBackColor",V.Global.sGreenHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Description","HeaderBackColor",V.Global.sGreenHeader)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Group_ID","CellBackColor",V.Global.sGreenCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Company","CellBackColor",V.Global.sGreenCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Gs_Group","CellBackColor",V.Global.sGreenCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Description","CellBackColor",V.Global.sGreenCell)
+'	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Copy","CellBackColor","Gray")
+	
+'	Gui.F_Sec.GsGCSec.SetColumnProperty("gvGroups","Copy","CellForeColor","White")
+	
+	Gui.F_Sec.GsGCSec.ResumeLayout()
+	
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry
+Program.Sub.LoadDTGVGroups.End
+
+Program.Sub.LoadDTGVUsers.Start
+	F.Intrinsic.Control.Try
+	V.Local.sError.Declare
+	
+	'Load all users associated with security groups
+	
+	V.Local.sSQL.Declare
+	
+	F.Intrinsic.Control.If(V.DataTable.dtUsers.Exists)
+		F.Data.DataTable.Close("dtUsers")
+	F.Intrinsic.Control.EndIf
+	
+	Gui.F_Sec.lblMsg.Caption("Loading Users....")
+	F.Intrinsic.String.Build("Select A.Group_ID,A.Company,A.User_ID,B.Gs_User,B.First_Name+' '+B.Last_Name As Name From Menu_Security_Assoc A Join User_Information B On A.User_ID = B.User_ID Where A.Company = '{0}';",V.Caller.CompanyCode,V.Local.sSQL)
+	F.Data.DataTable.CreateFromSQL("dtGroups$dtUsers","common",V.Local.sSQL,True)
+	F.Data.DataTable.AddRelation("dtGroups","Group_ID","dtGroups$dtUsers","Group_ID","Users")
+	
+	F.Data.DataView.Create("dtGroups$dtUsers","dvUsers")
+	Gui.F_Sec.GsGCSec.AddGridViewFromDataView("gvUsers","dtGroups","dvUsers")
+	Gui.F_Sec.GsGCSec.SuspendLayout()
+	
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvUsers","Multiselect",True)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvUsers","Editable",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvUsers","ReadOnly",True)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvUsers","AllowSort",True)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvUsers","AllowFilter",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvUsers","OptionsDetailShowDetailTabs",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvUsers","OptionsViewShowGroupPanel",False)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Group_ID","Visible",False)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Company","Visible",False)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","User_ID","Visible",False)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Group_ID","Caption","Group ID")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Company","Caption","Company Code")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","User_ID","Caption","User ID")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Gs_User","Caption","GS User")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Name","Caption","Name")
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Group_ID","MinWidth","50")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Company","MinWidth","50")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","User_ID","MinWidth","50")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Gs_User","MinWidth","50")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Name","MinWidth","150")
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Group_ID","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Company","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","User_ID","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Gs_User","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Name","HeaderFontBold",True)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Group_ID","HeaderBackColor",V.Global.sGrayHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Company","HeaderBackColor",V.Global.sGrayHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","User_ID","HeaderBackColor",V.Global.sGrayHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Gs_User","HeaderBackColor",V.Global.sGrayHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Name","HeaderBackColor",V.Global.sGrayHeader)
+
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Group_ID","CellBackColor",V.Global.sGrayCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Company","CellBackColor",V.Global.sGrayCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","User_ID","CellBackColor",V.Global.sGrayCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Gs_User","CellBackColor",V.Global.sGrayCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvUsers","Name","CellBackColor",V.Global.sGrayCell)
+	
+	Gui.F_Sec.GsGCSec.ResumeLayout()
+	
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry
+Program.Sub.LoadDTGVUsers.End
+
+Program.Sub.LoadPermissions.Start
+	F.Intrinsic.Control.Try
+	V.Local.sError.Declare
+	
+	V.Local.iCnt.Declare
+	V.Local.sModulesDT.Declare
+	V.Local.sHeadersDT.Declare
+	V.Local.sSelectionsDT.Declare
+	V.Local.sSelectionSubsDT.Declare
+	V.Local.sPermissions.Declare
+	
+	'Loop through Group IDs
+	
+	Gui.F_Sec.lblMsg.Visible(True)
+	Gui.F_Sec.pb1.Visible(True)
+	Gui.F_Sec.pb1.Min(0)
+	Gui.F_Sec.pb1.Max(V.DataTable.dtGroups.RowCount)
+	
+	F.Intrinsic.Control.For(V.Local.iCnt,0,V.DataTable.dtGroups.RowCount--,1)
+		Gui.F_Sec.pb1.Value(V.Local.iCnt)
+		F.Intrinsic.Control.CallSub(GetSelIDsFromMenuSec,"GroupID",V.DataTable.dtGroups(V.Local.iCnt).Group_ID!FieldVal)
+		F.Intrinsic.Control.If(V.Args.SecurityIDsRV,<>,"")
+		'Load Security Data
+			F.Intrinsic.Control.CallSub(LoadSelectionsSubs,"SecurityIDs",V.Args.SecurityIDsRV)
+			F.Intrinsic.Control.CallSub(LoadSelections,"SecurityIDs",V.Args.SecurityIDsRV)
+			F.Intrinsic.Control.If(V.Args.HeaderIDsRV,=,"")
+				F.Intrinsic.Control.Next(V.Local.iCnt)
+			F.Intrinsic.Control.EndIf
+			F.Intrinsic.Control.CallSub(LoadHeaders,"HeaderIDs",V.Args.HeaderIDsRV)
+			F.Intrinsic.Control.CallSub(LoadModules,"ModuleIDsRV",V.Args.ModuleIDsRV)
+		'Create DataTable Names
+			F.Intrinsic.String.Build("dtGroups$dtModules{0}",V.Local.iCnt,V.Local.sModulesDT)
+			F.Intrinsic.String.Build("{0}$dtHeaders{1}",V.Local.sModulesDT,V.Local.iCnt,V.Local.sHeadersDT)
+			F.Intrinsic.String.Build("{0}$dtSelections{1}",V.Local.sHeadersDT,V.Local.iCnt,V.Local.sSelectionsDT)
+			F.Intrinsic.String.Build("{0}$dtSelectionSubs{1}",V.Local.sSelectionsDT,V.Local.iCnt,V.Local.sSelectionSubsDT)
+			F.Intrinsic.String.Build("Permissions ({0})",V.DataTable.dtGroups(V.Local.iCnt).Gs_Group!FieldVal,V.Local.sPermissions)
+		'Create Relationships
+			'Link Modules to Groups
+			F.Data.DataView.Create("dtModules","dvModules")
+			F.Data.DataView.ToDataTable("dtModules","dvModules",V.Local.sModulesDT,True)
+			F.Data.DataTable.AddColumn(V.Local.sModulesDT,"GROUP_ID",Long,V.DataTable.dtGroups(V.Local.iCnt).Group_ID!FieldVal)
+			F.Data.DataTable.AddRelation("dtGroups","GROUP_ID",V.Local.sModulesDT,"GROUP_ID",V.Local.sPermissions)
+			'Link Modules and Headers
+			F.Data.DataView.Create("dtHeaders","dvHeaders")
+			F.Data.DataView.ToDataTable("dtHeaders","dvHeaders",V.Local.sHeadersDT,True)
+			F.Data.DataTable.AddRelation(V.Local.sModulesDT,"Module_ID",V.Local.sHeadersDT,"Module_ID")
+			'Link Headers and Selections
+			F.Data.DataView.Create("dtSelections","dvSelections")
+			F.Data.DataView.ToDataTable("dtSelections","dvSelections",V.Local.sSelectionsDT,True)
+			F.Data.DataTable.AddRelation(V.Local.sHeadersDT,"Header_ID",V.Local.sSelectionsDT,"Header_ID")
+			'Link Selections and Sub Selections
+			F.Data.DataView.Create("dtSelectionSubs","dvSelectionSubs")
+			F.Data.DataView.ToDataTable("dtSelectionSubs","dvSelectionSubs",V.Local.sSelectionSubsDT,True)
+			F.Data.DataTable.AddRelation(V.Local.sSelectionsDT,"Selection_ID*!*Header_ID",V.Local.sSelectionSubsDT,"Selection_ID*!*Header_ID")
+		'Format GridViews
+			Gui.F_Sec.lblMsg.Caption("Loading GridViews....")
+			F.Intrinsic.Control.CallSub(LoadGVModules,"ModulesDT",V.Local.sModulesDT)
+			F.Intrinsic.Control.CallSub(LoadGVHeader,"HeadersDT",V.Local.sHeadersDT)
+			F.Intrinsic.Control.CallSub(LoadGVSelection,"SelectionsDT",V.Local.sSelectionsDT)
+			F.Intrinsic.Control.CallSub(LoadGVSelectionSubs,"SelectionSubsDT",V.Local.sSelectionSubsDT)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Next(V.Local.iCnt)
+	
+	Gui.F_Sec.lblMsg.Visible(False)
+	Gui.F_Sec.pb1.Visible(False)
+
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry
+Program.Sub.LoadPermissions.End
+
+Program.Sub.GetSelIDsFromMenuSec.Start
+	F.Intrinsic.Control.Try
+	V.Local.sError.Declare
+	
+	V.Local.sSQL.Declare
+	V.Local.iCnt.Declare
+	V.Local.SecurityIDsRV.Declare
+	
+	F.Intrinsic.Control.If(V.DataTable.dtMenuSec.Exists)
+		F.Data.DataTable.Close("dtMenuSec")
+	F.Intrinsic.Control.EndIf
+	
+	Gui.F_Sec.lblMsg.Caption("Retrieving Selection IDs From Menu Security....")
+	F.Intrinsic.String.Build("Select Concat(Level_ID,Level_Seq) As SelSeq,Access_ID From Menu_Security Where Access_ID = {0} And Company = '{1}' And Enabled = 1 And Level_Type = 2 Order By Level_ID,Level_Seq;",V.Args.GroupID,V.Caller.CompanyCode,V.Local.sSQL)
+	F.Data.DataTable.CreateFromSQL("dtMenuSec","common",V.Local.sSQL,True)
+	
+	F.Intrinsic.Control.For(V.Local.iCnt,0,V.DataTable.dtMenuSec.RowCount--,1)
+		F.Intrinsic.Control.If(V.Local.iCnt,=,0)
+			V.Local.SecurityIDsRV.Set(V.DataTable.dtMenuSec(V.Local.iCnt).SelSeq!FieldVal)
+		F.Intrinsic.Control.Else
+			F.Intrinsic.String.Build("{0},{1}",V.Local.SecurityIDsRV,V.DataTable.dtMenuSec(V.Local.iCnt).SelSeq!FieldVal,V.Local.SecurityIDsRV)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Next(V.Local.iCnt)
+	
+	F.Intrinsic.Variable.AddRV("SecurityIDsRV",V.Local.SecurityIDsRV)
+	
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry
+Program.Sub.GetSelIDsFromMenuSec.End
+
+Program.Sub.LoadSelectionsSubs.Start
+	F.Intrinsic.Control.Try
+	V.Local.sError.Declare
+	
+	'Load Selection Sub Menu Items
+	
+	V.Local.sSQL.Declare
+	
+	F.Intrinsic.Control.If(V.DataTable.dtSelectionSubs.Exists)
+		F.Data.DataTable.Close("dtSelectionSubs")
+	F.Intrinsic.Control.EndIf
+
+	Gui.F_Sec.lblMsg.Caption("Loading Selection Sub Menu Items....")
+	F.Intrinsic.String.Build("SELECT SELECTION_ID,HEADER_ID,SEQUENCE,TITLE,JOB_STREAM_ID,SELECTION_ID AS SELECTION_ID2 FROM MENU_SELECTIONS WHERE HEADER_ID IN (SELECT HEADER_ID FROM MENU_HEADERS WHERE MODULE_ID BETWEEN 1 AND 19) AND SEQUENCE <> 0 AND SELECTION_ID < 100000 AND CHILDOFID = 0 AND CONCAT(SELECTION_ID,SEQUENCE) IN ({0}) UNION SELECT CHILDOFID AS SELECTION_ID,HEADER_ID,SEQUENCE,TITLE,JOB_STREAM_ID,SELECTION_ID AS SELECTION_ID2 FROM MENU_SELECTIONS WHERE HEADER_ID IN (SELECT HEADER_ID FROM MENU_HEADERS WHERE MODULE_ID BETWEEN 1 AND 19) AND SEQUENCE <> 0 AND SELECTION_ID < 100000 AND CHILDOFID <> 0 AND CONCAT(SELECTION_ID,SEQUENCE) IN ({0});",V.Args.SecurityIDs,V.Local.sSQL)
+	F.Data.DataTable.CreateFromSQL("dtSelectionSubs","con",V.Local.sSQL,True)
+	
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry
+Program.Sub.LoadSelectionsSubs.End
+
+Program.Sub.LoadSelections.Start
+	F.Intrinsic.Control.Try
+	V.Local.sError.Declare
+	
+	'Load Selections
+	
+	V.Local.sSQL.Declare
+	V.Local.iCnt.Declare
+	V.Local.sHeaderIDsRV.Declare
+	
+	F.Intrinsic.Control.If(V.DataTable.dtSelections.Exists)
+		F.Data.DataTable.Close("dtSelections")
+	F.Intrinsic.Control.EndIf
+
+	Gui.F_Sec.lblMsg.Caption("Loading Selections....")
+	F.Intrinsic.String.Build("SELECT SELECTION_ID,HEADER_ID,SEQUENCE,TITLE,JOB_STREAM_ID FROM MENU_SELECTIONS WHERE HEADER_ID IN (SELECT HEADER_ID FROM MENU_HEADERS WHERE MODULE_ID BETWEEN 1 AND 19) AND SEQUENCE = 0 AND CONCAT(SELECTION_ID,SEQUENCE) IN ({0}) ORDER BY SELECTION_ID,HEADER_ID,SEQUENCE;",V.Args.SecurityIDs,V.Local.sSQL)
+	F.Data.DataTable.CreateFromSQL("dtSelections","con",V.Local.sSQL,True)
+	
+	'Get Header IDs
+	F.Data.DataView.Create("dtSelections","dvHeaderIDs")
+	F.Data.DataView.ToDataTableDistinct("dtSelections","dvHeaderIDs","dtHeaderIDs","HEADER_ID",True)
+	F.Data.DataView.Close("dtSelections","dvHeaderIDs")
+	F.Intrinsic.Control.For(V.Local.iCnt,0,V.DataTable.dtHeaderIDs.RowCount--,1)
+		F.Intrinsic.Control.If(V.Local.iCnt,=,0)
+			V.Local.sHeaderIDsRV.Set(V.DataTable.dtHeaderIDs(V.Local.iCnt).HEADER_ID!FieldVal)
+		F.Intrinsic.Control.Else
+			F.Intrinsic.String.Build("{0},{1}",V.Local.sHeaderIDsRV,V.DataTable.dtHeaderIDs(V.Local.iCnt).HEADER_ID!FieldVal,V.Local.sHeaderIDsRV)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Next(V.Local.iCnt)
+	F.Data.DataTable.Close("dtHeaderIDs")
+	
+	F.Intrinsic.Variable.AddRV("HeaderIDsRV",V.Local.sHeaderIDsRV)
+	
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry
+Program.Sub.LoadSelections.End
+
+Program.Sub.LoadHeaders.Start
+	F.Intrinsic.Control.Try
+	V.Local.sError.Declare
+	
+	'Load Headers
+	
+	V.Local.sSQL.Declare
+	V.Local.iCnt.Declare
+	V.Local.sModuleIDsRV.Declare
+	
+	F.Intrinsic.Control.If(V.DataTable.dtHeaders.Exists)
+		F.Data.DataTable.Close("dtHeaders")
+	F.Intrinsic.Control.EndIf
+
+	Gui.F_Sec.lblMsg.Caption("Loading Headers....")
+	F.Intrinsic.String.Build("SELECT HEADER_ID,MODULE_ID,HEADER_TITLE FROM MENU_HEADERS WHERE MODULE_ID IN (SELECT MODULE_ID FROM MENU_MODULE WHERE MODULE_ID BETWEEN 1 AND 19) AND HEADER_ID IN ({0}) ORDER BY MODULE_ID,HEADER_TYPE;",V.Args.HeaderIDs,V.Local.sSQL)
+	F.Data.DataTable.CreateFromSQL("dtHeaders","con",V.Local.sSQL,True)
+	
+	'Get Module IDs
+	F.Data.DataView.Create("dtHeaders","dvModuleIDs")
+	F.Data.DataView.ToDataTableDistinct("dtHeaders","dvModuleIDs","dtModuleIDs","MODULE_ID",True)
+	F.Data.DataView.Close("dtHeaders","dvModuleIDs")
+	F.Intrinsic.Control.For(V.Local.iCnt,0,V.DataTable.dtModuleIDs.RowCount--,1)
+		F.Intrinsic.Control.If(V.Local.iCnt,=,0)
+			V.Local.sModuleIDsRV.Set(V.DataTable.dtModuleIDs(V.Local.iCnt).MODULE_ID!FieldVal)
+		F.Intrinsic.Control.Else
+			F.Intrinsic.String.Build("{0},{1}",V.Local.sModuleIDsRV,V.DataTable.dtModuleIDs(V.Local.iCnt).MODULE_ID!FieldVal,V.Local.sModuleIDsRV)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Next(V.Local.iCnt)
+	F.Data.DataTable.Close("dtModuleIDs")
+	
+	F.Intrinsic.Variable.AddRV("ModuleIDsRV",V.Local.sModuleIDsRV)
+	
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry
+Program.Sub.LoadHeaders.End
+
+Program.Sub.LoadModules.Start
+	F.Intrinsic.Control.Try
+	V.Local.sError.Declare
+	
+	'Load Modules
+	
+	V.Local.sSQL.Declare
+	
+	F.Intrinsic.Control.If(V.DataTable.dtModules.Exists)
+		F.Data.DataTable.Close("dtModules")
+	F.Intrinsic.Control.EndIf
+
+	Gui.F_Sec.lblMsg.Caption("Loading Modules....")
+	F.Intrinsic.String.Build("SELECT MODULE_ID,MODULE,MODULE_TITLE from MENU_MODULE WHERE MODULE_ID BETWEEN 1 AND 19 AND MODULE_ID IN ({0}) ORDER BY MODULE_ID;",V.Args.ModuleIDsRV,V.Local.sSQL)
+	F.Data.DataTable.CreateFromSQL("dtModules","con",V.Local.sSQL,True)
+	
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry
+Program.Sub.LoadModules.End
+
+Program.Sub.LoadGVModules.Start
+	F.Intrinsic.Control.Try
+	V.Local.sError.Declare
+	
+	F.Data.DataView.Create(V.Args.ModulesDT,"dvModule")
+	
+	Gui.F_Sec.GsGCSec.AddGridViewFromDataView("gvModule","dtGroups","dvModule")
+	
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvModule","Multiselect",True)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvModule","OptionBehaviorEditable",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvModule","ReadOnly",True)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvModule","AllowSort",True)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvModule","AllowFilter",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvModule","OptionsDetailShowDetailTabs",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvModule","OptionsViewShowGroupPanel",False)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","MODULE","Visible",False)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","MODULE_ID","Visible",False)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","GROUP_ID","Visible",False)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","MODULE_ID","Caption","Module ID")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","MODULE","Caption","Module ID")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","MODULE_TITLE","Caption","Module")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","GROUP_ID","Caption","Group ID")
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","MODULE_ID","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","MODULE","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","MODULE_TITLE","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","GROUP_ID","HeaderFontBold",True)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","MODULE_ID","HeaderBackColor",V.Global.sGrayHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","MODULE","HeaderBackColor",V.Global.sGrayHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","MODULE_TITLE","HeaderBackColor",V.Global.sGrayHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","GROUP_ID","HeaderBackColor",V.Global.sGrayHeader)
+
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","MODULE_ID","CellBackColor",V.Global.sGrayCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","MODULE","CellBackColor",V.Global.sGrayCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","MODULE_TITLE","CellBackColor",V.Global.sGrayCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvModule","GROUP_ID","CellBackColor",V.Global.sGrayCell)
+	
+	F.Data.DataView.Close(V.Args.ModulesDT,"dvModule")
+	
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry
+Program.Sub.LoadGVModules.End
+
+Program.Sub.LoadGVHeader.Start
+	F.Intrinsic.Control.Try
+	V.Local.sError.Declare
+	
+	F.Data.DataView.Create(V.Args.HeadersDT,"dvHeader")
+	
+	Gui.F_Sec.GsGCSec.AddGridViewFromDataView("gvHeader","dtGroups","dvHeader")
+	
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvHeader","Multiselect",True)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvHeader","OptionBehaviorEditable",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvHeader","ReadOnly",True)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvHeader","AllowSort",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvHeader","AllowFilter",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvHeader","OptionsDetailShowDetailTabs",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvHeader","OptionsViewShowGroupPanel",False)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvHeader","HEADER_ID","Visible",False)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvHeader","MODULE_ID","Visible",False)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvHeader","HEADER_TITLE","ShowCaption",False)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvHeader","HEADER_ID","Caption","Header ID")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvHeader","MODULE_ID","Caption","Module ID")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvHeader","HEADER_TITLE","Caption","Header")
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvHeader","HEADER_ID","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvHeader","MODULE_ID","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvHeader","HEADER_TITLE","HeaderFontBold",True)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvHeader","HEADER_ID","HeaderBackColor",V.Global.sGreenHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvHeader","MODULE_ID","HeaderBackColor",V.Global.sGreenHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvHeader","HEADER_TITLE","HeaderBackColor",V.Global.sGreenHeader)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvHeader","HEADER_ID","CellBackColor",V.Global.sGreenCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvHeader","MODULE_ID","CellBackColor",V.Global.sGreenCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvHeader","HEADER_TITLE","CellBackColor",V.Global.sGreenCell)
+
+	F.Data.DataView.Close(V.Args.HeadersDT,"dvHeader")
+	
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry
+Program.Sub.LoadGVHeader.End
+
+Program.Sub.LoadGVSelection.Start
+	F.Intrinsic.Control.Try
+	V.Local.sError.Declare
+	
+	F.Data.DataView.Create(V.Args.SelectionsDT,"dvSelections")
+	
+	Gui.F_Sec.GsGCSec.AddGridViewFromDataView("gvSelection","dtGroups","dvSelections")
+	
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvSelection","Multiselect",True)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvSelection","OptionBehaviorEditable",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvSelection","ReadOnly",True)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvSelection","AllowSort",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvSelection","AllowFilter",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvSelection","OptionsDetailShowDetailTabs",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvSelection","OptionsViewShowGroupPanel",False)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","SELECTION_ID","Visible",False)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","HEADER_ID","Visible",False)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","SEQUENCE","Visible",False)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","JOB_STREAM_ID","Visible",False)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","TITLE","ShowCaption",False)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","SELECTION_ID","Caption","Selection ID")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","HEADER_ID","Caption","Header ID")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","SEQUENCE","Caption","Seq")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","TITLE","Caption","Title")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","JOB_STREAM_ID","Caption","Job Stream ID")
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","SELECTION_ID","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","HEADER_ID","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","SEQUENCE","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","TITLE","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","JOB_STREAM_ID","HeaderFontBold",True)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","SELECTION_ID","HeaderBackColor",V.Global.sGrayHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","HEADER_ID","HeaderBackColor",V.Global.sGrayHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","SEQUENCE","HeaderBackColor",V.Global.sGrayHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","TITLE","HeaderBackColor",V.Global.sGrayHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","JOB_STREAM_ID","HeaderBackColor",V.Global.sGrayHeader)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","SELECTION_ID","CellBackColor",V.Global.sGrayCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","HEADER_ID","CellBackColor",V.Global.sGrayCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","SEQUENCE","CellBackColor",V.Global.sGrayCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","TITLE","CellBackColor",V.Global.sGrayCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelection","JOB_STREAM_ID","CellBackColor",V.Global.sGrayCell)
+
+	F.Data.DataView.Close(V.Args.SelectionsDT,"dvSelections")
+	
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry
+Program.Sub.LoadGVSelection.End
+
+Program.Sub.LoadGVSelectionSubs.Start
+	F.Intrinsic.Control.Try
+	V.Local.sError.Declare
+	
+	V.Local.sHeaderColor.Declare
+	V.Local.sColumnColor.Declare
+	
+	F.Data.DataView.Create(V.Args.SelectionSubsDT,"dvSelectionSubs")
+	
+	Gui.F_Sec.GsGCSec.AddGridViewFromDataView("gvSelectionSubs","dtGroups","dvSelectionSubs")
+	
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvSelectionSubs","Multiselect",True)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvSelectionSubs","OptionBehaviorEditable",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvSelectionSubs","ReadOnly",True)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvSelectionSubs","AllowSort",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvSelectionSubs","AllowFilter",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvSelectionSubs","OptionsDetailShowDetailTabs",False)
+	Gui.F_Sec.GsGCSec.SetGridViewProperty("gvSelectionSubs","OptionsViewShowGroupPanel",False)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","SELECTION_ID","Visible",False)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","HEADER_ID","Visible",False)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","SEQUENCE","Visible",False)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","JOB_STREAM_ID","Visible",False)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","SELECTION_ID2","Visible",False)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","TITLE","ShowCaption",False)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","SELECTION_ID","Caption","Selection ID")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","HEADER_ID","Caption","Header ID")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","SEQUENCE","Caption","Seq")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","TITLE","Caption","Title")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","JOB_STREAM_ID","Caption","Job Stream ID")
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","SELECTION_ID2","Caption","Selection ID 2")
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","SELECTION_ID","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","HEADER_ID","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","SEQUENCE","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","TITLE","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","JOB_STREAM_ID","HeaderFontBold",True)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","SELECTION_ID2","HeaderFontBold",True)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","SELECTION_ID","HeaderBackColor",V.Global.sGreenHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","HEADER_ID","HeaderBackColor",V.Global.sGreenHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","SEQUENCE","HeaderBackColor",V.Global.sGreenHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","TITLE","HeaderBackColor",V.Global.sGreenHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","JOB_STREAM_ID","HeaderBackColor",V.Global.sGreenHeader)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","SELECTION_ID2","HeaderBackColor",V.Global.sGreenHeader)
+	
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","SELECTION_ID","CellBackColor",V.Global.sGreenCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","HEADER_ID","CellBackColor",V.Global.sGreenCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","SEQUENCE","CellBackColor",V.Global.sGreenCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","TITLE","CellBackColor",V.Global.sGreenCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","JOB_STREAM_ID","CellBackColor",V.Global.sGreenCell)
+	Gui.F_Sec.GsGCSec.SetColumnProperty("gvSelectionSubs","SELECTION_ID2","CellBackColor",V.Global.sGreenCell)
+
+	F.Data.DataView.Close(V.Args.SelectionSubsDT,"dvSelectionSubs")
+	
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry
+Program.Sub.LoadGVSelectionSubs.End
+
+Program.Sub.GsGCSec_RowCellClick.Start
+	F.Intrinsic.Control.Try
+	V.Local.sError.Declare
+	
+	V.Local.iSecurityID.Declare
+	V.Local.iAccessId.Declare
+	V.Local.iRet.Declare
+	V.Local.sSQL.Declare
+	V.Local.iLevelType.Declare
+	V.Local.iLevelID.Declare
+	V.Local.iLevelSeq.Declare
+	V.Local.iAccessType.Declare
+	V.Local.iEnabled.Declare
+	V.Local.iWeekday.Declare
+	V.Local.iRestrictedAccess.Declare
+	V.Local.sRet.Declare
+	V.Local.sUser.Declare
+	
+	F.Intrinsic.Control.SelectCase(V.Args.Column)
+		F.Intrinsic.Control.Case("COPY")
+			
+
+		F.Intrinsic.Control.Case("ADDUSER")
+			F.Intrinsic.UI.Browser(10,"",V.Local.sRet)
+			F.Intrinsic.String.Split(V.Local.sRet,"*!*",V.Local.sRet)
+			F.Intrinsic.Control.If(V.Local.sRet,<>,"***CANCEL***")
+				V.Local.iAccessId.Set(V.Local.sRet(0).Long)
+				V.Local.sUser.Set(V.Local.sRet(1))
+				Gui.F_Sec.GsGCSec.GetCellValue("gvSecurity1",0,V.Args.RowIndex,V.Local.iSecurityID)
+				F.Intrinsic.String.Build("SELECT * FROM MENU_SECURITY WHERE SECURITY_ID = '{0}';",V.Local.iSecurityID,V.Local.sSQL)
+				F.ODBC.Connection!con.OpenRecordsetRO("rstSecurity",V.Local.sSQL)
+					F.ODBC.Connection!con.ExecuteAndReturn("SELECT TOP 1 SECURITY_ID FROM MENU_SECURITY ORDER BY SECURITY_ID DESC;",V.Local.iSecurityID)
+					F.Intrinsic.Math.Add(V.Local.iSecurityID,1,V.Local.iSecurityID)
+					V.Local.iLevelType.Set(V.ODBC.con!rstSecurity.FieldValLong!LEVEL_TYPE)
+					V.Local.iLevelID.Set(V.ODBC.con!rstSecurity.FieldValLong!LEVEL_ID)
+					V.Local.iLevelSeq.Set(V.ODBC.con!rstSecurity.FieldValLong!LEVEL_SEQ)
+					V.Local.iAccessType.Set(V.ODBC.con!rstSecurity.FieldValLong!ACCESS_TYPE)
+					V.Local.iEnabled.Set(1)
+					V.Local.iWeekday.Set(V.ODBC.con!rstSecurity.FieldValLong!WEEKDAY)
+					V.Local.iRestrictedAccess.Set(0)
+					V.Local.sSQL.Set("INSERT INTO MENU_SECURITY")
+					F.Intrinsic.String.Build("{11} VALUES({0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10});",V.Local.iSecurityID,V.Local.iLevelType,V.Local.iLevelID,V.Local.iLevelSeq,V.Local.iAccessType,V.Local.iAccessId,V.Local.iEnabled,V.Local.iWeekday,"NULL","NULL",V.Local.iRestrictedAccess,V.Local.sSQL,V.Local.sSQL)
+					F.ODBC.Connection!con.Execute(V.Local.sSQL)
+					F.Data.DataTable.AddRow("dtModule$dtHeader$dtSelection$dtSecurity1","SECURITY_ID",V.Local.iSecurityID,"LEVEL_ID",V.Local.iLevelID,"LEVEL_SEQ",V.Local.iLevelSeq,"ACCESS_ID",V.Local.iAccessId,"USER",V.Local.sUser)
+				F.ODBC.con!rstSecurity.Close
+			F.Intrinsic.Control.EndIf
+
+		F.Intrinsic.Control.Case("REMOVEUSER")
+			F.Intrinsic.UI.Msgbox("Continue with the removal of User Permissions?","Confirmation",4,V.Local.iRet)
+			F.Intrinsic.Control.If(V.Local.iRet,=,6)
+				Gui.F_Sec.GsGCSec.GetCellValue("gvSecurity2",0,V.Args.RowIndex,V.Local.iSecurityID)
+				Gui.F_Sec.GsGCSec.GetCellValue("gvSecurity2",3,V.Args.RowIndex,V.Local.iAccessId)
+				F.Intrinsic.String.Build("DELETE FROM MENU_SECURITY WHERE SECURITY_ID = {0} AND ACCESS_ID = {1};",V.Local.iSecurityID,V.Local.iAccessId,V.Local.sSQL)
+				F.ODBC.Connection!con.Execute(V.Local.sSQL)
+				F.Data.DataTable.DeleteRow("dtModule$dtHeader$dtSelection$dtSecurity2",V.Args.RowIndex)
+			F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndSelect
+	
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry	
+Program.Sub.GsGCSec_RowCellClick.End
+
+Program.Sub.cmdRefresh_Click.Start
+	F.Intrinsic.Control.Try
+	V.Local.sError.Declare
+	
+	F.Intrinsic.Control.CallSub(LoadDTGVGroups)
+	F.Intrinsic.Control.CallSub(LoadDTGVUsers)
+	F.Intrinsic.Control.CallSub(LoadPermissions)
+	
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry
+Program.Sub.cmdRefresh_Click.End
+
+Program.Sub.picGSSLogo_DblClick.Start
+	F.Intrinsic.Control.Try
+	V.Local.sError.Declare
+	
+	F.Intrinsic.Task.ShellExec(0,"Open","http://www.globalshopsolutions.com/login-customer","","",0)
+	
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry
+Program.Sub.picGSSLogo_DblClick.End
+
+Program.Sub.Comments.Start
+${$5$}$2.0.0.0$}$2
+${$6$}$dyunus$}$20201125094943383$}$xZ6SHi8g7O0Qsxe6AiO2NH3PnOKQRy0Tb/XtkQ4ntc4v5Ng8AM6j/V/3lJOAGZDT/Uu4FympGiw=
+Program.Sub.Comments.End
